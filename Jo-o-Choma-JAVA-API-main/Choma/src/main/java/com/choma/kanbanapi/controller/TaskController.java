@@ -26,12 +26,35 @@ public class TaskController {
     }
 
     @GetMapping
-    public List<Task> getAllTasks() {
+    public List<Task> getTasks(
+            @RequestParam(required = false) TaskStatus status,
+            @RequestParam(required = false) Long id
+    ) {
+        if (status != null && id != null) {
+            List<Task> tasks = taskRepository.findByStatusAndIdOrderByPriorityAsc(status, id);
+            return tasks.isEmpty() ? List.of() : tasks;
+        }
+        if (status != null) {
+            return taskRepository.findByStatusOrderByPriorityAsc(status);
+        }
+        if (id != null) {
+            Optional<Task> taskOptional = taskRepository.findById(id);
+            return taskOptional.map(List::of).orElse(List.of());
+        }
         List<Task> tasks = new ArrayList<>();
         tasks.addAll(taskRepository.findByStatusOrderByPriorityAsc(TaskStatus.TODO));
         tasks.addAll(taskRepository.findByStatusOrderByPriorityAsc(TaskStatus.IN_PROGRESS));
         tasks.addAll(taskRepository.findByStatusOrderByPriorityAsc(TaskStatus.DONE));
         return tasks;
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Task> getTaskById(@PathVariable Long id) {
+        Task task = taskRepository.findById(id).orElse(null);
+        if (task == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(task);
     }
 
     @PutMapping("/{id}/move")
