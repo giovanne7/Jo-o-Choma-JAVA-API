@@ -1,12 +1,14 @@
 package com.choma.kanbanapi.controller;
 
 import com.choma.kanbanapi.model.Task;
+import com.choma.kanbanapi.model.TaskPriority;
 import com.choma.kanbanapi.model.TaskStatus;
 import com.choma.kanbanapi.repository.TaskRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,60 +21,61 @@ public class TaskController {
 
     @PostMapping
     public Task createTask(@RequestBody Task task) {
-        task.setStatus(TaskStatus.TODO); 
+        task.setStatus(TaskStatus.TODO);
         return taskRepository.save(task);
     }
 
     @GetMapping
     public List<Task> getAllTasks() {
-        return taskRepository.findAll();
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<Task> updateTask(
-            @PathVariable Long id, @RequestBody Task updatedTask) {
-        Optional<Task> optionalTask = taskRepository.findById(id);
-
-        if (optionalTask.isPresent()) {
-            Task task = optionalTask.get();
-            task.setTitle(updatedTask.getTitle());
-            task.setDescription(updatedTask.getDescription());
-            task.setPriority(updatedTask.getPriority());
-            task.setDueDate(updatedTask.getDueDate());
-            return ResponseEntity.ok(taskRepository.save(task));
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+        List<Task> tasks = new ArrayList<>();
+        tasks.addAll(taskRepository.findByStatusOrderByPriorityAsc(TaskStatus.TODO));
+        tasks.addAll(taskRepository.findByStatusOrderByPriorityAsc(TaskStatus.IN_PROGRESS));
+        tasks.addAll(taskRepository.findByStatusOrderByPriorityAsc(TaskStatus.DONE));
+        return tasks;
     }
 
     @PutMapping("/{id}/move")
     public ResponseEntity<Task> moveTask(@PathVariable Long id) {
-        Optional<Task> optionalTask = taskRepository.findById(id);
-
-        if (optionalTask.isPresent()) {
-            Task task = optionalTask.get();
-
-            if (task.getStatus() == TaskStatus.TODO) {
-                task.setStatus(TaskStatus.IN_PROGRESS);
-            } else if (task.getStatus() == TaskStatus.IN_PROGRESS) {
-                task.setStatus(TaskStatus.DONE);
-            } else {
-                return ResponseEntity.badRequest().body(null); // Já está em "Concluído"
-            }
-
-            return ResponseEntity.ok(taskRepository.save(task));
-        } else {
+        Optional<Task> taskOptional = taskRepository.findById(id);
+        if (!taskOptional.isPresent()) {
             return ResponseEntity.notFound().build();
         }
+
+        Task task = taskOptional.get();
+        if (task.getStatus() == TaskStatus.TODO) {
+            task.setStatus(TaskStatus.IN_PROGRESS);
+        } else if (task.getStatus() == TaskStatus.IN_PROGRESS) {
+            task.setStatus(TaskStatus.DONE);
+        } else {
+            return ResponseEntity.badRequest().build();
+        }
+        taskRepository.save(task);
+        return ResponseEntity.ok(task);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Task> updateTask(@PathVariable Long id, @RequestBody Task updatedTask) {
+        Optional<Task> taskOptional = taskRepository.findById(id);
+        if (!taskOptional.isPresent()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Task task = taskOptional.get();
+        task.setTitle(updatedTask.getTitle());
+        task.setDescription(updatedTask.getDescription());
+        task.setPriority(updatedTask.getPriority());
+        task.setDueDate(updatedTask.getDueDate());
+        taskRepository.save(task);
+
+        return ResponseEntity.ok(task);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTask(@PathVariable Long id) {
-        if (taskRepository.existsById(id)) {
-            taskRepository.deleteById(id);
-            return ResponseEntity.noContent().build();
-        } else {
+        if (!taskRepository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
+        taskRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 }
